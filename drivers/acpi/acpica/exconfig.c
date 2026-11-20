@@ -461,12 +461,8 @@ acpi_ex_load_op(union acpi_operand_object *obj_desc,
 	acpi_ex_enter_interpreter();
 	if (ACPI_FAILURE(status)) {
 
-		/*
-		 * Table buffer is already freed by acpi_tb_uninstall_table
-		 * in acpi_tb_install_and_load_table if installation succeeded,
-		 * or by acpi_tb_uninstall_table in acpi_tb_install_standard_table
-		 * if verification failed after partial setup.
-		 */
+		/* Table buffer is already freed by acpi_tb_install_and_load_table */
+
 		return_ACPI_STATUS(status);
 	}
 

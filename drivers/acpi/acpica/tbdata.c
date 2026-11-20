@@ -995,7 +995,9 @@ acpi_tb_load_table(u32 table_index, struct acpi_namespace_node *parent_node)
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Install and load an ACPI table
+ * DESCRIPTION: Install and load an ACPI table. An internally allocated
+ *              table (ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL) is always consumed,
+ *              on failure it is freed here.
  *
  ******************************************************************************/
 
@@ -1015,6 +1017,14 @@ acpi_tb_install_and_load_table(acpi_physical_address address,
 	status = acpi_tb_install_standard_table(address, flags, table, TRUE,
 						override, &i);
 	if (ACPI_FAILURE(status)) {
+		/*
+		 * Table was not installed (e.g. it is a duplicate or failed
+		 * verification), so nobody else will free an internal buffer
+		 */
+		if ((flags & ACPI_TABLE_ORIGIN_MASK) ==
+		    ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL) {
+			ACPI_FREE(table);
+		}
 		goto exit;
 	}
 
