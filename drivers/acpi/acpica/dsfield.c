@@ -530,6 +530,18 @@ acpi_ds_create_field(union acpi_parse_object *op,
 	if (info.region_node->object->region.space_id ==
 	    ACPI_ADR_SPACE_PLATFORM_COMM &&
 	    !region_node->object->field.internal_pcc_buffer) {
+		/*
+	   * If AOPOBJ_DATA_VALID flag is not set the region operands is not
+	   * evaluated (e.g. disassembler), nothing to allocate.
+	   * Also avoid a zero-size allocation which may yield a non-NULL pointer
+	   */
+
+		if (!(info.region_node->object->common.flags &
+		      AOPOBJ_DATA_VALID) ||
+		    (!info.region_node->object->region.length)) {
+			return_ACPI_STATUS(AE_OK);
+		}
+
 		region_node->object->field.internal_pcc_buffer =
 		    ACPI_ALLOCATE_ZEROED(info.region_node->object->region.
 					 length);
