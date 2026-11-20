@@ -347,10 +347,28 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 		 * implementation will use the offsets specified rather than the name
 		 * of the field. This is considered safer because some firmware tools
 		 * are known to obfiscate named objects.
+		 *
+		 * Ensure the field access does not exceed the bounds of the
+		 * internal_pcc_buffer.
 		 */
 		data_length =
 		    (acpi_size)ACPI_ROUND_BITS_UP_TO_BYTES(obj_desc->field.
 							   bit_length);
+
+		if (!obj_desc->field.region_obj->field.internal_pcc_buffer) {
+			return_ACPI_STATUS(AE_AML_NO_OPERAND);
+		}
+
+		if (obj_desc->field.base_byte_offset + data_length >
+		    obj_desc->field.region_obj->region.length) {
+			ACPI_ERROR((
+				AE_INFO,
+				"PCC field at offset %u length %u exceeds region size %u",
+				obj_desc->field.base_byte_offset, data_length,
+				obj_desc->field.region_obj->region.length));
+			return_ACPI_STATUS(AE_AML_BUFFER_LIMIT);
+		}
+
 		memcpy(obj_desc->field.region_obj->field.internal_pcc_buffer +
 		       obj_desc->field.base_byte_offset,
 		       source_desc->buffer.pointer, data_length);
