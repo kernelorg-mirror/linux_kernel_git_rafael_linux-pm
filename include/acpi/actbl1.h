@@ -590,6 +590,7 @@ struct acpi_cedt_rdpas {
 	u16 bdf;
 	u8 protocol;
 	u64 address;
+	u8 reserved[3];
 };
 
 /* Masks for bdf field above */
