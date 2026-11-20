@@ -519,6 +519,7 @@ acpi_ut_update_object_reference(union acpi_operand_object *object, u16 action)
 				while (prev_object) {
 					if (prev_object->common.type !=
 					    ACPI_TYPE_LOCAL_NOTIFY) {
+						next_object = NULL;
 						break;
 					}
 					next_object =
