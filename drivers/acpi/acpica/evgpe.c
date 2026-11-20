@@ -489,6 +489,18 @@ static void ACPI_SYSTEM_XFACE acpi_ev_asynch_execute_gpe_method(void *context)
 
 	case ACPI_GPE_DISPATCH_METHOD:
 
+		/*
+		 * Re-check dispatch type. The table may have been unloaded
+		 * and its GPE dispatch cleared while we were waiting.
+		 */
+		if (ACPI_GPE_DISPATCH_TYPE(gpe_event_info->flags) !=
+		    ACPI_GPE_DISPATCH_METHOD) {
+			ACPI_DEBUG_PRINT(
+				(ACPI_DB_EVENTS,
+				 "GPE method dispatch cleared during wait\n"));
+			goto error_exit;
+		}
+
 		/* Allocate the evaluation information block */
 
 		info = ACPI_ALLOCATE_ZEROED(sizeof(struct acpi_evaluate_info));
@@ -534,6 +546,91 @@ error_exit:
 	return_VOID;
 }
 
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_ev_clear_gpe_dispatch_by_owner
+ *
+ * PARAMETERS:  owner_id        - Table owner_id being unloaded
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Clear GPE dispatch info for methods belonging to the table
+ *              being unloaded. If any matching GPE is currently dispatching,
+ *              it is not cleared and AE_ABORT_METHOD is returned.
+ *
+ ******************************************************************************/
+
+acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
+{
+	struct acpi_gpe_xrupt_info *gpe_xrupt_info;
+	struct acpi_gpe_block_info *gpe_block;
+	struct acpi_gpe_event_info *gpe_event_info;
+	u32 gpe_number;
+	acpi_cpu_flags flags;
+	acpi_status status = AE_OK;
+
+	ACPI_FUNCTION_TRACE_U32(ev_clear_gpe_dispatch_by_owner, owner_id);
+
+	if (owner_id == 0) {
+		return_ACPI_STATUS(AE_OK);
+	}
+
+	flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
+
+	/* Walk all GPE interrupt blocks */
+
+	gpe_xrupt_info = acpi_gbl_gpe_xrupt_list_head;
+	while (gpe_xrupt_info) {
+		gpe_block = gpe_xrupt_info->gpe_block_list_head;
+		while (gpe_block) {
+			/* Walk all GPEs in this block */
+
+			for (gpe_number = 0; gpe_number < gpe_block->gpe_count;
+			     gpe_number++) {
+				gpe_event_info =
+					&gpe_block->event_info[gpe_number];
+
+				if ((ACPI_GPE_DISPATCH_TYPE(
+					     gpe_event_info->flags) ==
+				     ACPI_GPE_DISPATCH_METHOD) &&
+				    (gpe_event_info->dispatch.method_node) &&
+				    (gpe_event_info->dispatch.method_node
+					     ->owner_id == owner_id)) {
+					/* GPE method belongs to table being unloaded */
+
+					if (gpe_event_info
+						    ->disable_for_dispatch) {
+						/* Handler is executing, cannot clear */
+						status = AE_ABORT_METHOD;
+					} else {
+						/* Clear only the dispatch type, preserve other flags */
+						gpe_event_info->flags &=
+							~ACPI_GPE_DISPATCH_MASK;
+						gpe_event_info->dispatch
+							.method_node = NULL;
+
+						/*
+						 * Hardware-disable the GPE so a late interrupt
+						 * cannot fire and land in the "no handler" default
+						 * branch with disable_for_dispatch stuck at TRUE.
+						 */
+						(void)acpi_hw_low_set_gpe(
+							gpe_event_info,
+							ACPI_GPE_DISABLE);
+					}
+				}
+			}
+
+			gpe_block = gpe_block->next;
+		}
+
+		gpe_xrupt_info = gpe_xrupt_info->next;
+	}
+
+	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+	return_ACPI_STATUS(status);
+}
 
 /*******************************************************************************
  *

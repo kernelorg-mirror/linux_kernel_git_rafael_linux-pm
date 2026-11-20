@@ -1059,6 +1059,19 @@ acpi_status acpi_tb_unload_table(u32 table_index)
 		acpi_tb_notify_table(ACPI_TABLE_EVENT_UNLOAD, table);
 	}
 
+#if (!ACPI_REDUCED_HARDWARE)
+	/*
+	 * Clear GPE dispatch for methods owned by the table being unloaded.
+	 * If any matching GPE is currently dispatching, AE_ABORT_METHOD is
+	 * returned and the unload cannot proceed.
+	 */
+	status = acpi_ev_clear_gpe_dispatch_by_owner(
+		acpi_gbl_root_table_list.tables[table_index].owner_id);
+	if (ACPI_FAILURE(status)) {
+		return_ACPI_STATUS(status);
+	}
+#endif /* !ACPI_REDUCED_HARDWARE */
+
 	/* Delete the portion of the namespace owned by this table */
 
 	status = acpi_tb_delete_namespace_by_owner(table_index);
