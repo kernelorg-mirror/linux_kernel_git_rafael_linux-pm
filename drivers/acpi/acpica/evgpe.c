@@ -640,6 +640,43 @@ acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
 	while (gpe_xrupt_info) {
 		gpe_block = gpe_xrupt_info->gpe_block_list_head;
 		while (gpe_block) {
+			/*
+			 * Walk all GPEs in this block to make sure none are blocked from
+			 * getting cleared with disable_for_dispatch
+			 */
+
+			for (gpe_number = 0; gpe_number < gpe_block->gpe_count;
+			     gpe_number++) {
+				gpe_event_info =
+					&gpe_block->event_info[gpe_number];
+				gpe_dispatch_type =
+					acpi_ev_dispatch_type_hidden_handler(
+						gpe_event_info, owner_id);
+				if ((gpe_dispatch_type ==
+					     ACPI_GPE_DISPATCH_METHOD ||
+				     gpe_dispatch_type ==
+					     ACPI_GPE_DISPATCH_NOTIFY) &&
+				    gpe_event_info->disable_for_dispatch) {
+					/* At least one handler is polling or executing, cannot clear */
+					status = AE_ABORT_METHOD;
+					acpi_os_release_lock(acpi_gbl_gpe_lock,
+							     flags);
+					(void)acpi_ut_release_mutex(
+						ACPI_MTX_EVENTS);
+					return_ACPI_STATUS(status);
+				}
+			}
+
+			gpe_block = gpe_block->next;
+		}
+
+		gpe_xrupt_info = gpe_xrupt_info->next;
+	}
+
+	gpe_xrupt_info = acpi_gbl_gpe_xrupt_list_head;
+	while (gpe_xrupt_info) {
+		gpe_block = gpe_xrupt_info->gpe_block_list_head;
+		while (gpe_block) {
 			/* Walk all GPEs in this block */
 
 			for (gpe_number = 0; gpe_number < gpe_block->gpe_count;
@@ -656,27 +693,19 @@ acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
 					 * GPE method belongs to table being unloaded. Clear
 					 * only the dispatch type, preserve other flags.
 					 */
+					gpe_event_info->flags &=
+						~ACPI_GPE_DISPATCH_MASK;
+					gpe_event_info->dispatch
+						.method_node = NULL;
 
-					if (gpe_event_info
-						    ->disable_for_dispatch) {
-						/* Handler is executing, cannot clear */
-						status = AE_ABORT_METHOD;
-					} else {
-						/* Clear only the dispatch type, preserve other flags */
-						gpe_event_info->flags &=
-							~ACPI_GPE_DISPATCH_MASK;
-						gpe_event_info->dispatch
-							.method_node = NULL;
-
-						/*
-						 * Hardware-disable the GPE so a late interrupt
-						 * cannot fire and land in the "no handler" default
-						 * branch with disable_for_dispatch stuck at TRUE.
-						 */
-						(void)acpi_hw_low_set_gpe(
-							gpe_event_info,
-							ACPI_GPE_DISABLE);
-					}
+					/*
+					 * Hardware-disable the GPE so a late interrupt
+					 * cannot fire and land in the "no handler" default
+					 * branch with disable_for_dispatch stuck at TRUE.
+					 */
+					(void)acpi_hw_low_set_gpe(
+						gpe_event_info,
+						ACPI_GPE_DISABLE);
 					break;
 
 				case ACPI_GPE_DISPATCH_HANDLER:
