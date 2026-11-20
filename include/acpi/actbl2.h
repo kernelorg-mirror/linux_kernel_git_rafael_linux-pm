@@ -38,6 +38,7 @@
 #define ACPI_SIG_MADT           "APIC"	/* Multiple APIC Description Table */
 #define ACPI_SIG_MCFG           "MCFG"	/* PCI Memory Mapped Configuration table */
 #define ACPI_SIG_MCHI           "MCHI"	/* Management Controller Host Interface table */
+#define ACPI_SIG_MISC           "MISC"	/* Miscellaneous GUIDed Table */
 #define ACPI_SIG_MPAM           "MPAM"	/* Memory System Resource Partitioning and Monitoring Table */
 #define ACPI_SIG_MPST           "MPST"	/* Memory Power State Table */
 #define ACPI_SIG_MRRM           "MRRM"	/* Memory Range and Region Mapping table */
@@ -1874,6 +1875,35 @@ struct acpi_table_mchi {
 	u8 pci_bus;
 	u8 pci_device;
 	u8 pci_function;
+};
+
+/*******************************************************************************
+ *
+ * MISC - Miscellaneous GUIDed Table
+ *
+ * Conforms to section "Miscellaneous GUIDed Table Entries" of ACPI
+ * Specification v6.5
+ *
+ ******************************************************************************/
+
+struct acpi_misc_guid_entry {
+	u8 entry_guid[16];
+	u32 entry_length;
+	u32 revision;
+	char producer_id[ACPI_NAMESEG_SIZE] ACPI_NONSTRING; /* ACPI Vendor ID */
+	u8 data[];
+};
+
+/* Minimum length of a MISC entry (the header fields, without any Data) */
+
+#define ACPI_MISC_MIN_ENTRY_LENGTH 28
+
+struct acpi_table_misc {
+	struct acpi_table_header header; /* Common ACPI table header */
+	/*
+	 * Immediately followed by one or more variable-length entries:
+	 * struct acpi_misc_guid_entry Entries[];
+	 */
 };
 
 /*******************************************************************************
