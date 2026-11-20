@@ -1068,13 +1068,6 @@ acpi_status acpi_tb_unload_table(u32 table_index)
 		return_ACPI_STATUS(AE_NOT_EXIST);
 	}
 
-	/* Invoke table handler */
-
-	status = acpi_get_table_by_index(table_index, &table);
-	if (ACPI_SUCCESS(status)) {
-		acpi_tb_notify_table(ACPI_TABLE_EVENT_UNLOAD, table);
-	}
-
 #if (!ACPI_REDUCED_HARDWARE)
 	/*
 	 * Clear GPE dispatch for methods owned by the table being unloaded.
@@ -1087,6 +1080,13 @@ acpi_status acpi_tb_unload_table(u32 table_index)
 		return_ACPI_STATUS(status);
 	}
 #endif /* !ACPI_REDUCED_HARDWARE */
+
+	/* Invoke table handler */
+
+	status = acpi_get_table_by_index(table_index, &table);
+	if (ACPI_SUCCESS(status)) {
+		acpi_tb_notify_table(ACPI_TABLE_EVENT_UNLOAD, table);
+	}
 
 	/* Delete the portion of the namespace owned by this table */
 
