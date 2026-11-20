@@ -1019,6 +1019,12 @@ acpi_tb_install_and_load_table(acpi_physical_address address,
 	}
 
 	status = acpi_tb_load_table(i, acpi_gbl_root_node);
+	if (ACPI_FAILURE(status)) {
+		/* Table was installed but not loaded, uninstall to clean up */
+
+		acpi_tb_uninstall_table(&acpi_gbl_root_table_list.tables[i]);
+		goto exit;
+	}
 
 exit:
 	*table_index = i;
