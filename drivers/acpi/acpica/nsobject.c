@@ -174,7 +174,9 @@ void acpi_ns_detach_object(struct acpi_namespace_node *node)
 	obj_desc = node->object;
 
 	/* Alias nodes point directly to other namespace nodes; skip teardown */
-	if (node->flags & ANOBJ_IS_ALIAS) {
+	if ((node->type == ACPI_TYPE_LOCAL_ALIAS) ||
+	    (node->type == ACPI_TYPE_LOCAL_METHOD_ALIAS) ||
+	    (node->flags & ANOBJ_IS_ALIAS)) {
 		node->object = NULL;
 		return_VOID;
 	}
