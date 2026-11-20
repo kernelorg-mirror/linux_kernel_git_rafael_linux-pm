@@ -374,6 +374,12 @@ acpi_ds_get_field_names(struct acpi_create_field_info *info,
 
 		case AML_INT_NAMEDFIELD_OP:
 
+			/* Validate the 4-char name to prevent OOB read in acpi_ns_lookup */
+
+			if (!acpi_ut_valid_nameseg((char *)&arg->named.name)) {
+				return_ACPI_STATUS(AE_BAD_CHARACTER);
+			}
+
 			/* Lookup the name, it should already exist */
 
 			status = acpi_ns_lookup(walk_state->scope_info,
@@ -630,6 +636,12 @@ acpi_ds_init_field_objects(union acpi_parse_object *op,
 		 * in the field names in order to enter them into the namespace.
 		 */
 		if (arg->common.aml_opcode == AML_INT_NAMEDFIELD_OP) {
+			/* Validate the 4-char name to prevent OOB read in acpi_ns_lookup */
+
+			if (!acpi_ut_valid_nameseg((char *)&arg->named.name)) {
+				return_ACPI_STATUS(AE_BAD_CHARACTER);
+			}
+
 			status = acpi_ns_lookup(walk_state->scope_info,
 						(char *)&arg->named.name, type,
 						ACPI_IMODE_LOAD_PASS1, flags,
