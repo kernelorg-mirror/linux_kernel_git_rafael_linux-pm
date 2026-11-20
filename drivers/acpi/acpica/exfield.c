@@ -291,6 +291,7 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 	acpi_status status;
 	u32 buffer_length;
 	u32 data_length;
+	u32 copy_length;
 	void *buffer;
 
 	ACPI_FUNCTION_TRACE_PTR(ex_write_data_to_field, obj_desc);
@@ -338,7 +339,34 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 		    acpi_ex_write_serial_bus(source_desc, obj_desc,
 					     result_desc);
 		return_ACPI_STATUS(status);
-	} else if ((obj_desc->common.type == ACPI_TYPE_LOCAL_REGION_FIELD) &&
+	}
+
+	/* Get a pointer to the data to be written */
+
+	switch (source_desc->common.type) {
+	case ACPI_TYPE_INTEGER:
+
+		buffer = &source_desc->integer.value;
+		buffer_length = sizeof(source_desc->integer.value);
+		break;
+
+	case ACPI_TYPE_BUFFER:
+
+		buffer = source_desc->buffer.pointer;
+		buffer_length = source_desc->buffer.length;
+		break;
+
+	case ACPI_TYPE_STRING:
+
+		buffer = source_desc->string.pointer;
+		buffer_length = source_desc->string.length;
+		break;
+
+	default:
+		return_ACPI_STATUS(AE_AML_OPERAND_TYPE);
+	}
+
+	if ((obj_desc->common.type == ACPI_TYPE_LOCAL_REGION_FIELD) &&
 		   (obj_desc->field.region_obj->region.space_id ==
 		    ACPI_ADR_SPACE_PLATFORM_COMM)) {
 		/*
@@ -369,9 +397,15 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 			return_ACPI_STATUS(AE_AML_BUFFER_LIMIT);
 		}
 
+		copy_length = ACPI_MIN(data_length, buffer_length);
+
+		memset(obj_desc->field.region_obj->field.internal_pcc_buffer +
+			       obj_desc->field.base_byte_offset,
+		       0, data_length);
+
 		memcpy(obj_desc->field.region_obj->field.internal_pcc_buffer +
 		       obj_desc->field.base_byte_offset,
-		       source_desc->buffer.pointer, data_length);
+		       buffer, copy_length);
 
 		if (MASTER_SUBSPACE_COMMAND(obj_desc->field.base_byte_offset)) {
 
@@ -389,31 +423,6 @@ acpi_ex_write_data_to_field(union acpi_operand_object *source_desc,
 			return_ACPI_STATUS(status);
 		}
 		return (AE_OK);
-	}
-
-	/* Get a pointer to the data to be written */
-
-	switch (source_desc->common.type) {
-	case ACPI_TYPE_INTEGER:
-
-		buffer = &source_desc->integer.value;
-		buffer_length = sizeof(source_desc->integer.value);
-		break;
-
-	case ACPI_TYPE_BUFFER:
-
-		buffer = source_desc->buffer.pointer;
-		buffer_length = source_desc->buffer.length;
-		break;
-
-	case ACPI_TYPE_STRING:
-
-		buffer = source_desc->string.pointer;
-		buffer_length = source_desc->string.length;
-		break;
-
-	default:
-		return_ACPI_STATUS(AE_AML_OPERAND_TYPE);
 	}
 
 	ACPI_DEBUG_PRINT((ACPI_DB_BFIELD,
