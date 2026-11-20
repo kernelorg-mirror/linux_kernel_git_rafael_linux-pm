@@ -209,12 +209,32 @@ acpi_ex_read_data_from_field(struct acpi_walk_state *walk_state,
 		ACPI_DEBUG_PRINT((ACPI_DB_BFIELD,
 				  "PCC FieldRead bits %u\n",
 				  obj_desc->field.bit_length));
+		/*
+		 * Ensure the field access does not exceed the bounds of the
+		 * internal_pcc_buffer. The buffer is allocated with the region length,
+		 * so verify that base_byte_offset + field byte length <= Region.Length.
+		 */
+		if (!obj_desc->field.region_obj->field.internal_pcc_buffer) {
+			status = AE_AML_NO_OPERAND;
+			goto exit;
+		}
 
+		buffer_length = (acpi_size)ACPI_ROUND_BITS_UP_TO_BYTES(
+			obj_desc->field.bit_length);
+		if (obj_desc->field.base_byte_offset + buffer_length >
+		    obj_desc->field.region_obj->region.length) {
+			ACPI_ERROR((
+				AE_INFO,
+				"PCC field at offset %u length %u exceeds region size %u",
+				obj_desc->field.base_byte_offset, buffer_length,
+				obj_desc->field.region_obj->region.length));
+			status = AE_AML_BUFFER_LIMIT;
+			goto exit;
+		}
 		memcpy(buffer,
 		       obj_desc->field.region_obj->field.internal_pcc_buffer +
 		       obj_desc->field.base_byte_offset,
-		       (acpi_size)ACPI_ROUND_BITS_UP_TO_BYTES(obj_desc->field.
-							      bit_length));
+		       buffer_length);
 
 		*ret_buffer_desc = buffer_desc;
 		return AE_OK;
