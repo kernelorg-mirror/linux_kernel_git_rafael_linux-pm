@@ -1059,6 +1059,7 @@ acpi_status acpi_tb_unload_table(u32 table_index)
 {
 	acpi_status status = AE_OK;
 	struct acpi_table_header *table;
+	acpi_owner_id ACPI_UNUSED_VAR owner_id;
 
 	ACPI_FUNCTION_TRACE(tb_unload_table);
 
@@ -1074,8 +1075,8 @@ acpi_status acpi_tb_unload_table(u32 table_index)
 	 * If any matching GPE is currently dispatching, AE_ABORT_METHOD is
 	 * returned and the unload cannot proceed.
 	 */
-	status = acpi_ev_clear_gpe_dispatch_by_owner(
-		acpi_gbl_root_table_list.tables[table_index].owner_id);
+	acpi_tb_get_owner_id(table_index, &owner_id);
+	status = acpi_ev_clear_gpe_dispatch_by_owner(owner_id);
 	if (ACPI_FAILURE(status)) {
 		return_ACPI_STATUS(status);
 	}
