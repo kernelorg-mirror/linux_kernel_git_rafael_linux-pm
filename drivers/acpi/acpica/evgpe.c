@@ -537,6 +537,67 @@ error_exit:
 
 /*******************************************************************************
  *
+ * FUNCTION:    acpi_ev_dispatch_type_hidden_handler
+ *
+ * PARAMETERS:  gpe_event_info  - Struct where GPE dispatch type is stored
+ *              owner_id        - Table owner_id being unloaded that should match
+ *                                the gpe_event_info
+ *
+ * RETURN:      Return the dispatch type if it is either explicitly present or
+ *              hidden behind the handler saved method_node. The GPE has to also
+ *              match the table ID passed through owner_id to this function.
+ *              Return 0 if the above criteria aren't matched.
+ *
+ * DESCRIPTION: Check whether a passed GPE event info is of either DISPATCH,
+ *              NOTIFY or HANDLER type. Then verify it belongs to the table
+ *              ID passed as an argument and that it has a Method Node. Helper
+ *              is used for example with cleaning up after table unloading.
+ *
+ ******************************************************************************/
+static u8
+acpi_ev_dispatch_type_hidden_handler(struct acpi_gpe_event_info *gpe_event_info,
+				     acpi_owner_id owner_id)
+{
+	u8 gpe_dispatch_type = ACPI_GPE_DISPATCH_TYPE(gpe_event_info->flags);
+	struct acpi_gpe_handler_info *handler;
+
+	switch (gpe_dispatch_type) {
+	case ACPI_GPE_DISPATCH_METHOD:
+		if (!(gpe_event_info->dispatch.method_node) ||
+		    (gpe_event_info->dispatch.method_node->owner_id !=
+		     owner_id)) {
+			return 0;
+		}
+		break;
+
+	/* Method or Notify can be saved if the handler is present */
+	case ACPI_GPE_DISPATCH_HANDLER:
+	case ACPI_GPE_DISPATCH_RAW_HANDLER:
+		handler = gpe_event_info->dispatch.handler;
+		if (!(handler->method_node)) {
+			return 0;
+		}
+
+		switch (ACPI_GPE_DISPATCH_TYPE(handler->original_flags)) {
+		case ACPI_GPE_DISPATCH_METHOD:
+			if (handler->method_node->owner_id != owner_id) {
+				return 0;
+			}
+			break;
+		default:
+			return 0;
+		}
+
+		break;
+
+	default:
+		return 0;
+	}
+	return gpe_dispatch_type;
+}
+
+/*******************************************************************************
+ *
  * FUNCTION:    acpi_ev_clear_gpe_dispatch_by_owner
  *
  * PARAMETERS:  owner_id        - Table owner_id being unloaded
@@ -557,6 +618,8 @@ acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
 	u32 gpe_number;
 	acpi_cpu_flags flags;
 	acpi_status status = AE_OK;
+	u32 gpe_dispatch_type;
+	struct acpi_gpe_handler_info *handler;
 
 	ACPI_FUNCTION_TRACE_U32(ev_clear_gpe_dispatch_by_owner, owner_id);
 
@@ -584,13 +647,15 @@ acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
 				gpe_event_info =
 					&gpe_block->event_info[gpe_number];
 
-				if ((ACPI_GPE_DISPATCH_TYPE(
-					     gpe_event_info->flags) ==
-				     ACPI_GPE_DISPATCH_METHOD) &&
-				    (gpe_event_info->dispatch.method_node) &&
-				    (gpe_event_info->dispatch.method_node
-					     ->owner_id == owner_id)) {
-					/* GPE method belongs to table being unloaded */
+				gpe_dispatch_type =
+					acpi_ev_dispatch_type_hidden_handler(
+						gpe_event_info, owner_id);
+				switch (gpe_dispatch_type) {
+				case ACPI_GPE_DISPATCH_METHOD:
+					/*
+					 * GPE method belongs to table being unloaded. Clear
+					 * only the dispatch type, preserve other flags.
+					 */
 
 					if (gpe_event_info
 						    ->disable_for_dispatch) {
@@ -612,6 +677,30 @@ acpi_status acpi_ev_clear_gpe_dispatch_by_owner(acpi_owner_id owner_id)
 							gpe_event_info,
 							ACPI_GPE_DISABLE);
 					}
+					break;
+
+				case ACPI_GPE_DISPATCH_HANDLER:
+				case ACPI_GPE_DISPATCH_RAW_HANDLER:
+
+					handler =
+						gpe_event_info->dispatch.handler;
+					gpe_dispatch_type =
+						ACPI_GPE_DISPATCH_TYPE(
+							handler->original_flags);
+
+					/* Forget the hidden method so handler removal can't restore it */
+					if (gpe_dispatch_type ==
+					    ACPI_GPE_DISPATCH_METHOD) {
+						handler->method_node = NULL;
+						handler->original_flags &=
+							~ACPI_GPE_DISPATCH_MASK; /* -> NONE */
+						handler->originally_enabled =
+							FALSE;
+					}
+					break;
+
+				default:
+					break;
 				}
 			}
 
