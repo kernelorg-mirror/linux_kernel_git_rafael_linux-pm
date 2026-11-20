@@ -588,8 +588,8 @@ struct acpi_cedt_rdpas {
 	struct acpi_cedt_header header;
 	u16 segment;
 	u16 bdf;
-	u8 protocol;
 	u64 address;
+	u8 protocol;
 	u8 reserved[3];
 };
 
