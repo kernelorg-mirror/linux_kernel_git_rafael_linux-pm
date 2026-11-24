@@ -538,6 +538,13 @@ static int rpm_idle(struct device *dev, int rpmflags)
 	else if (dev->power.idle_notification)
 		retval = -EINPROGRESS;
 
+	/*
+	 * Since an autosuspend timer may be running and the new last_busy value
+	 * needs to be seen by it, update last_busy before returning an error or
+	 * dropping the spinlock and allowing the timer function to grab it.
+	 */
+	pm_runtime_mark_last_busy(dev);
+
 	if (retval)
 		goto out;
 
