@@ -186,6 +186,13 @@ u64 pm_runtime_autosuspend_expiration(struct device *dev)
 	if (autosuspend_delay < 0)
 		return 0;
 
+	/*
+	 * Prevent last_busy updates occurring before the rpm_drop_usage_count()
+	 * invocations in __pm_runtime_idle() and __pm_runtime_suspend() from
+	 * being missed if the last_busy access below gets reordered before the
+	 * initial usage counter check in rpm_suspend().
+	 */
+	smp_rmb();
 	expires  = READ_ONCE(dev->power.last_busy);
 	expires += (u64)autosuspend_delay * NSEC_PER_MSEC;
 	if (expires > ktime_get_mono_fast_ns())
