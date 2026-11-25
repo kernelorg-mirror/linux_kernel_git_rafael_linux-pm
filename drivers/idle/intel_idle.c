@@ -1837,7 +1837,8 @@ static bool __init intel_idle_acpi_extract_cst_cstates(void)
 		if (!pr)
 			continue;
 
-		if (acpi_processor_evaluate_cst(pr->handle, cpu, &acpi_state_table))
+		if (acpi_processor_evaluate_cst(pr->handle, cpu, &acpi_state_table) ||
+		    !acpi_state_table.count)
 			continue;
 
 		acpi_state_table.count++;
